@@ -46,3 +46,39 @@ def test_default_question_of_lecture1_is_answerable_from_glossary():
     assert "3レベル" in DEFAULT_QUESTION
     hits = json.loads(tools.search_glossary("3レベル"))
     assert hits[0]["term"] == "宿題の3レベル"
+
+
+def test_ask_prints_input_and_output_token_counts(monkeypatch, capsys):
+    import app.ask as ask_module
+
+    class FakeUsage:
+        prompt_token_count = 12
+        candidates_token_count = 34
+        total_token_count = 46
+
+    class FakeResponse:
+        text = "これが返答です"
+        usage_metadata = FakeUsage()
+
+    class FakeModels:
+        def generate_content(self, model, contents):
+            assert model == ask_module.MODEL
+            assert contents == "質問"
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, api_key):
+            assert api_key == "test-key"
+            self.models = FakeModels()
+
+    monkeypatch.setattr(ask_module.genai, "Client", FakeClient)
+    monkeypatch.setattr(ask_module, "get_api_key", lambda: "test-key")
+
+    result = ask_module.ask("質問")
+
+    assert result == "これが返答です"
+    captured = capsys.readouterr().out
+    assert "入力トークン数" in captured
+    assert "12" in captured
+    assert "出力トークン数" in captured
+    assert "34" in captured
